@@ -1,6 +1,5 @@
 from enum import Enum
-
-from pydantic import BaseSettings
+from pydantic import  PostgresDsn, RedisDsn
 
 
 class EnvironmentType(str, Enum):
@@ -9,20 +8,17 @@ class EnvironmentType(str, Enum):
     TEST = "test"
 
 
-class BaseConfig(BaseSettings):
-    class Config:
-        case_sensitive = True
 
-
-class Config(BaseConfig):
+class Config():
     DEBUG: int = 0
     DEFAULT_LOCALE: str = "en_US"
     ENVIRONMENT: str = EnvironmentType.DEVELOPMENT
-    POSTGRES_URL: str = ""
+    POSTGRES_URL: PostgresDsn = ""
     RELEASE_VERSION: str = "0.1"
     SECRET_KEY: str = "secret-key"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
+    REDIS_URL:str = ""
 
 
 config: Config = Config()
