@@ -1,65 +1,58 @@
-from pydantic import UUID4, BaseModel, Field
+from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 
-
 class InsuranceResponse(BaseModel):
-    title: Annotated[str, Field(..., description="Task name", example="Task 1")]
-    description: Annotated[
-        str, Field(..., description="Task description", example="Task 1 description")
+    policy_name: Annotated[str, Field(..., description="Policy name", example="Policy 1")]
+    policy_url: Annotated[
+        str, Field(..., description="Policy URL", example="https://example.com/policy1")
     ]
-    completed: Annotated[
-        bool, Field(alias="is_completed", description="Task completed status")
-    ]
-    uuid: Annotated[
-        UUID4,
+    policy_id: Annotated[
+        int,
         Field(
-            ..., description="Task UUID", example="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+            ..., description="Policy ID", example=1
         ),
     ]
 
     class Config:
         orm_mode = True
 
-
 sampleListInsuranceResponse = {
     200: {
-        "description": "List of insurances retrieved successfully",
+        "description": "List of policies retrieved successfully",
         "content": {
             "application/json": {
                 "example": [
                     {
-                        "title": "Insurance 1",
-                        "description": "Description of Insurance 1",
-                        "completed": False,
-                        "uuid": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+                        "policy_name": "Policy 1",
+                        "policy_url": "https://example.com/policy1",
+                        "policy_id": 1,
                     },
                     {
-                        "title": "Insurance 2",
-                        "description": "Description of Insurance 2",
-                        "completed": True,
-                        "uuid": "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a12",
+                        "policy_name": "Policy 2",
+                        "policy_url": "https://example.com/policy2",
+                        "policy_id": 2,
                     },
                 ]
             }
         },
     }
 }
+
 sampleInsuranceResponse = {
     200: {
-        "description": "Insurance details retrieved successfully",
+        "description": "Policy details retrieved successfully",
         "content": {
             "application/json": {
                 "example": {
-                    "title": "Insurance 1",
-                    "description": "Description of Insurance 1",
-                    "completed": False,
-                    "uuid": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+                    "policy_name": "Policy 1",
+                    "policy_url": "https://example.com/policy1",
+                    "policy_id": 1,
                 }
             }
         },
     },
     404: {
-        "description": "Insurance not found",
-        "content": {"application/json": {"example": {"detail": "Insurance not found"}}},
+        "description": "Policy not found",
+        "content": {"application/json": {"example": {"detail": "Policy not found"}}},
     },
 }

@@ -37,5 +37,7 @@ async def login_user(
 ) -> Token:
     return Token(
         access_token="fake_access_token",
-        refresh_token="fake_refresh_token"
+        refresh_token="fake_refresh_token",
+        expires_in= 3600,
+        type="Bearer"
     )
