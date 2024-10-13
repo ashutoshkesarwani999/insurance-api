@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from app.models.responses.insurance import (
     InsuranceResponse,

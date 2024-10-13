@@ -6,9 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api import router
-from core.cache import Cache, CustomKeyMaker, RedisBackend
 from core.config import config
-from core.fastapi.middlewares import AuthBackend, AuthenticationMiddleware
 
 
 def init_routers(app_: FastAPI) -> None:

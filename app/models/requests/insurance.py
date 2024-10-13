@@ -1,6 +1,6 @@
+from datetime import date
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated
-from datetime import date
 
 class CustomerInsurance(BaseModel):
     customer_policy_id: Annotated[int, Field(..., description="Primary key of the customer policy")]
