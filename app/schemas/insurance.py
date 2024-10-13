@@ -1,8 +1,4 @@
-from enum import Enum
-from uuid import uuid4
-
-from sqlalchemy import BigInteger, Boolean, Column,Unicode, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import BigInteger,  Column,Unicode, ForeignKey
 from sqlalchemy.orm import relationship
 
 from core.database import Base

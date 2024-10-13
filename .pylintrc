@@ -1,7 +1,7 @@
 [MASTER]
 ignore=CVS
 ignore-patterns=
-ignore-paths=^venv/,^env/,^.venv/,^.env/, ^.tests/
+ignore-paths=^venv/,^env/,^.venv/,^.env/, ^tests/
 
 [BASIC]
 extension-pkg-whitelist=pydantic
