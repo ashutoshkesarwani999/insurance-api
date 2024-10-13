@@ -52,9 +52,6 @@ jobs:
     #     pip install safety
     #     safety check
 
-    - name: Build application
-      run: |
-        python setup.py sdist bdist_wheel
     - name: Build Docker image
       run: |
-        docker build -t your-app:${{ github.sha }} .
+        docker build -t fast-api:${{ github.sha }} .
