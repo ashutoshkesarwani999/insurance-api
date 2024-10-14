@@ -28,7 +28,7 @@ async def get_all_policies_async(async_session: AsyncSession, customer_id: int =
         result = await async_session.execute(statement)
         insurances = result.all()
         if not insurances:
-            raise HTTPException(status_code=200,detail="No records found")
+            raise HTTPException(status_code=200,detail="No data found")
         return insurances
     except SQLAlchemyError as e:
         logger.error(f"Unexpected error in get_insurance_route: {e}")
@@ -56,9 +56,10 @@ async def get_one_policy_async(async_session: AsyncSession, insurance_id: str = 
     try:
         result = await async_session.execute(statement)
         insurance = result.first()
-        if insurance:
-            return insurance
-        return {}
+
+        if not insurance:
+                raise HTTPException(status_code=200,detail="No data found")
+        return insurance
     except SQLAlchemyError as e:
         logger.error(f"Unexpected error in get_insurance_route: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
