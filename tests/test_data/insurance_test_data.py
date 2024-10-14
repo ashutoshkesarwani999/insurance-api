@@ -11,10 +11,10 @@ load_dotenv()
 
 # Database connection parameters
 db_params = {
-    "dbname": os.getenv("POSTGRES_DB", "fastapi-db"),
+    "dbname": os.getenv("POSTGRES_DB", "dbtest"),
     "user": os.getenv("POSTGRES_USER", "postgres"),
     "password": os.getenv("POSTGRES_PASSWORD", "password123"),
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
+    "host": os.getenv("POSTGRES_HOST", "0.0.0.0"),
     "port": os.getenv("POSTGRES_PORT", "5432")
 }
 
@@ -66,16 +66,18 @@ sample_customers = [
 
 # Sample customer insurance data
 sample_customer_insurance_data = [
-    (1, 101, "s3://sample-bucket/policies/policy_101.pdf", date(2023, 1, 15), date(2023, 1, 15)),
-    (2, 102, "s3://sample-bucket/policies/policy_102.pdf", date(2023, 2, 1), date(2023, 2, 1)),
-    (1, 103, "s3://sample-bucket/policies/policy_103.pdf", date(2023, 2, 15), date(2023, 2, 15)),
-    (3, 104, "s3://sample-bucket/policies/policy_104.pdf", date(2023, 3, 1), date(2023, 3, 1)),
-    (2, 105, "s3://sample-bucket/policies/policy_105.pdf", date(2023, 3, 15), date(2023, 3, 15)),
-    (4, 106, "s3://sample-bucket/policies/policy_106.pdf", date(2023, 4, 1), date(2023, 4, 1)),
-    (3, 107, "s3://sample-bucket/policies/policy_107.pdf", date(2023, 4, 15), date(2023, 4, 15)),
-    (5, 108, "s3://sample-bucket/policies/policy_108.pdf", date(2023, 5, 1), date(2023, 5, 1)),
-    (4, 109, "s3://sample-bucket/policies/policy_109.pdf", date(2023, 5, 15), date(2023, 5, 15)),
-    (5, 110, "s3://sample-bucket/policies/policy_110.pdf", date(2023, 6, 1), date(2023, 6, 1))
+    (1, 101, "s3://insurance-files-tokio-m/sample-insurance-1.pdf", date(2023, 1, 15), date(2023, 1, 15)),
+    (1, 102, "s3://insurance-files-tokio-m/sample-insurance-2.pdf", date(2023, 1, 15), date(2023, 1, 15)),
+    (1, 101, "s3://insurance-files-tokio-m/sample-insurance-3.pdf", date(2023, 1, 15), date(2023, 1, 15)),
+    (2, 102, "s3://insurance-files-tokio-m/sample-insurance-2.pdf", date(2023, 2, 1), date(2023, 2, 1)),
+    (1, 103, "s3://insurance-files-tokio-m/sample-insurance-3.pdf", date(2023, 2, 15), date(2023, 2, 15)),
+    (3, 104, "s3://insurance-files-tokio-m/sample-insurance-4.pdf", date(2023, 3, 1), date(2023, 3, 1)),
+    (2, 105, "s3://insurance-files-tokio-m/sample-insurance-5.pdf", date(2023, 3, 15), date(2023, 3, 15)),
+    (4, 106, "s3://insurance-files-tokio-m/sample-insurance-6.pdf", date(2023, 4, 1), date(2023, 4, 1)),
+    (3, 107, "s3://insurance-files-tokio-m/sample-insurance-7.pdf", date(2023, 4, 15), date(2023, 4, 15)),
+    (5, 108, "s3://insurance-files-tokio-m/sample-insurance-8.pdf", date(2023, 5, 1), date(2023, 5, 1)),
+    (4, 109, "s3://insurance-files-tokio-m/sample-insurance-9.pdf", date(2023, 5, 15), date(2023, 5, 15)),
+    (5, 110, "s3://insurance-files-tokio-m/sample-insurance-10.pdf", date(2023, 6, 1), date(2023, 6, 1))
 ]
 # Insert customer data query
 insert_customer_query = sql.SQL("""
