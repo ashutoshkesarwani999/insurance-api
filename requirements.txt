@@ -191,3 +191,5 @@ yfinance==0.2.44
 zope.event==5.0
 zope.interface==7.1.0
 asynctest==0.13.0
+psycopg2-binary==2.9.9
+bcrypt==4.2.0
