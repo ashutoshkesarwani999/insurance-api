@@ -2,14 +2,14 @@ from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 
 class InsuranceResponse(BaseModel):
-    policy_name: Annotated[str, Field(..., description="Policy name", example="Policy 1")]
-    policy_url: Annotated[
+    customer_id: Annotated[int, Field(..., description="Policy ID", example="1")]
+    customer_policy_url: Annotated[
         str, Field(..., description="Policy URL", example="https://example.com/policy1")
     ]
-    policy_id: Annotated[
+    insurance_id: Annotated[
         int,
         Field(
-            ..., description="Policy ID", example=1
+            ..., description="Insurance ID", example=1
         ),
     ]
 
