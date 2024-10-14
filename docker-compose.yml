@@ -18,13 +18,20 @@ services:
       - "-c"
       - "shared_buffers=256MB"
 
-  redis:
-    image: redis:6.2.7
+  fastapi:
+    build:
+      context: .
+    container_name: fastapi_app
     ports:
-      - "6379:6379"
-    volumes:
-      - redis:/data
-    command: redis-server --appendonly yes
+      - "8000:8000"
+    depends_on:
+      - postgresql
+    environment:
+      - user=${POSTGRES_USER}
+      - password=${POSTGRES_PASSWORD}
+      - database=${POSTGRES_DB}
+      - host=postgresql
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}  # Add your AWS access key here
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}  # Add your AWS secret key here
+      - AWS_REGION=us-west-2
 
-volumes:
-  redis:
