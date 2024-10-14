@@ -64,8 +64,8 @@ def create_app() -> FastAPI:
         FastAPI: The configured FastAPI application.
     """
     app_ = FastAPI(
-        title="FastAPI Boilerplate",
-        description="FastAPI Boilerplate by @iam-abbas",
+        title="Inusrance Management System",
+        description="Insurance management system by Ashutosh Kesarwani",
         version="1.0.0",
         docs_url=None if config.ENVIRONMENT == "production" else "/docs",
         redoc_url=None if config.ENVIRONMENT == "production" else "/redoc",
