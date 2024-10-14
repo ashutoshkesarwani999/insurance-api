@@ -7,8 +7,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.exceptions import ExceptionMiddleware
 
+
 from api import router
 from core.config import config
+from app.logger.logger import logger
 
 
 
@@ -20,7 +22,7 @@ async def global_exception_handler(request, exc):
         )
     else:
         # Log the exception for debugging purposes
-        print(f"Unhandled exception: {exc}")
+        logger.error(f"Unhandled exception: {exc}",exc_info=True)
 
         return JSONResponse(
             status_code=500,
@@ -34,7 +36,6 @@ def init_routers(app_: FastAPI) -> None:
 def init_listeners(app_: FastAPI) -> None:
     @app_.exception_handler(Exception)
     async def custom_exception_handler(request: Request, exc: Exception):
-        print(exc)
         return JSONResponse(
             status_code=exc.code,
             content={"error_code": exc.error_code, "message": exc.message},
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url=None if config.ENVIRONMENT == "production" else "/docs",
         redoc_url=None if config.ENVIRONMENT == "production" else "/redoc",
+        middleware=make_middleware()
     )
     init_routers(app_=app_)
     init_listeners(app_=app_)
