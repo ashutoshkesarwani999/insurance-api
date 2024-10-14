@@ -32,6 +32,7 @@ This project is an Insurance Management API that fetches insurance file URLs sto
    ```bash
    git clone https://github.com/ashutoshkesarwani999/insurance-api.git
    cd insurance-api
+   pip install -r requirements.txt
 2. **Build the docker Image**
    docker-compose up --build
 3. **Insert Test data to the Postgre database**
