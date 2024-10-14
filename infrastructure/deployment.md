@@ -2,8 +2,10 @@
 # Resources and Deployment step to deploy the cloudformation template
 
 ## Ensure you have access to these resources before running deploy
+- Install aws cli
+- Configure aws cli with the access key and token before executing the command
 
-## Resources to create
+### Resources to create
 
 - **EC2**
   - VPC
