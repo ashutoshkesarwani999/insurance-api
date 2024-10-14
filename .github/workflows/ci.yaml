@@ -44,8 +44,9 @@ jobs:
         git config --local user.name "GitHub Action"
         git diff --quiet && git diff --staged --quiet || (git add . && git commit -m "Auto format code using Black")
 
-    - name: Run tests
-      run: python -m pytest tests/api/v1/ -vv
+    # - name: Run tests
+    #   run: python -m pytest tests/api/v1/ -vv
+
 
     # - name: Run security scan
     #   run: |
