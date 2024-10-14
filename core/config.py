@@ -20,7 +20,6 @@ def create_postgres_url():
 
     return f"{scheme}://{username}:{password}@{host}:{port}/{database}"
 
-print("create_postgres_url",create_postgres_url())
 class Config():
     DEBUG: int = 0
     DEFAULT_LOCALE: str = "en_US"
