@@ -1,17 +1,15 @@
-from sqlalchemy import BigInteger, Column, Unicode
+from sqlalchemy import Integer, Column, Unicode
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from core.database.mixins import TimestampMixin
+from core.database.session import Base
 
 
-class Customer(Base, TimestampMixin):
+class Customer(Base):
     __tablename__ = "customers"
 
-    customer_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Unicode(255), nullable=False, unique=True)
     password = Column(Unicode(255), nullable=False)
-    username = Column(Unicode(255), nullable=False, unique=True)
 
     insurance = relationship(
         "Insurance", back_populates="customer", lazy="raise", passive_deletes=True
