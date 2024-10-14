@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, status
+from app.controllers.auth import AuthController
 from app.models.requests.customers import LoginCustomerRequest, RegisterUserRequest
 from app.models.responses.customers import CustomerRegistrationResponse, sampleResponses
 from app.models.extras.token import Token, sampleLoginResponse
+from core.factory.factory import Factory
 
 customer_router = APIRouter()
 
@@ -16,8 +18,13 @@ customer_router = APIRouter()
 )
 async def register_customer(
     register_customer_request: RegisterUserRequest,
+    auth_controller: AuthController = Depends(Factory().get_auth_controller)
 ) -> CustomerRegistrationResponse:
-    return {"customer_id": 123, "email": "test@example.com", "username": "testuser"}
+    return await auth_controller.register(
+        email=register_customer_request.email,
+        password=register_customer_request.password,
+        username=register_customer_request.username,
+    )
 
 
 @customer_router.post(
@@ -30,10 +37,9 @@ async def register_customer(
 )
 async def login_user(
     login_customer_request: LoginCustomerRequest,
+    auth_controller: AuthController = Depends(Factory().get_auth_controller),
+
 ) -> Token:
-    return Token(
-        access_token="fake_access_token",
-        refresh_token="fake_refresh_token",
-        expires_in=3600,
-        type="Bearer",
+    return await auth_controller.login(
+        email=login_customer_request.email, password=login_customer_request.password
     )
