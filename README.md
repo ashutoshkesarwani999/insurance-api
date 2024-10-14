@@ -33,7 +33,9 @@ This project is an Insurance Management API that fetches insurance file URLs sto
    git clone https://github.com/ashutoshkesarwani999/insurance-api.git
    cd insurance-api
    pip install -r requirements.txt
+
 2. **Build the docker Image**
+   - copy the contents from env.example to .env file and replace the AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY with relevant input or delete the variable
    docker-compose up --build
 3. **Insert Test data to the Postgre database**
    python tests/test_data/insurance_test_data.py
