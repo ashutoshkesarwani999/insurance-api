@@ -1,0 +1,736 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template to set up a secure, scalable GET API for retrieving insurance policies using Python FastAPI, AWS Fargate, ElastiCache (Redis), RDS (PostgreSQL), S3, Cognito, and other AWS services.
+
+Parameters:
+  VpcCIDR:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: CIDR block for the VPC.
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: "10.0.1.0/24"
+    Description: CIDR block for Public Subnet 1.
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: "10.0.2.0/24"
+    Description: CIDR block for Public Subnet 2.
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: "10.0.11.0/24"
+    Description: CIDR block for Private Subnet 1.
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: "10.0.12.0/24"
+    Description: CIDR block for Private Subnet 2.
+
+  ECRRepositoryURI:
+    Type: String
+    Description: URI of the ECR repository containing the FastAPI Docker image.
+
+  DBCredentialsSecret:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing database credentials
+
+
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket to store policy PDFs.
+
+  CognitoUserPoolName:
+    Type: String
+    Default: "InsuranceAPICognitoUserPool"
+    Description: Name of the Cognito Customer Pool.
+
+  CognitoAppClientName:
+    Type: String
+    Default: "InsuranceAPIAppClient"
+    Description: Name of the Cognito Customer Pool Client.
+
+  ClusterName:
+    Type: String
+    Default: "InsuranceAPICluster"
+    Description: Name of the ECS Cluster.
+
+  TaskDefinitionFamily:
+    Type: String
+    Default: "InsuranceAPITaskDefinition"
+    Description: Family name for the ECS Task Definition.
+
+  AllowedCIDR:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: CIDR block allowed to access the ALB (for API Gateway).
+
+Mappings:
+  AWSRegionArch2AMI:
+    us-east-1:
+      HVM64: "ami-0c94855ba95c71c99" # Amazon Linux 2 AMI
+    # Add more regions as needed
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIVPC
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPublicSubnet2
+
+  # Private Subnets
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPrivateSubnet1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPrivateSubnet2
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPrivateRouteTable
+
+  # Routes
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  # Route Table Associations
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # NAT Gateway
+  EIPforNAT:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIPforNAT.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: InsuranceAPINATGateway
+
+  # Private Route
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref NATGateway
+
+  # Security Groups
+  # ALB Security Group
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP and HTTPS traffic to ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref AllowedCIDR
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref AllowedCIDR
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  # ECS Security Group
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB to ECS insurance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  # RDS Security Group
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ECS insurance to RDS
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  # ElastiCache Security Group
+  ElastiCacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ECS insurance to ElastiCache
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: "0.0.0.0/0"
+
+  # RDS Subnet Group
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS instance
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIRDSSubnetGroup
+
+  # RDS Instance
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub '${AWS::StackName}-db'
+      DBName: /
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:db}}' ]]
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.medium
+      Engine: postgres
+      EngineVersion: 13.3
+      DBName: /
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:db}}' ]]
+      MasterUsername: /
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:username}}' ]]
+      MasterUserPassword: /
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:password}}' ]]
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      MultiAZ: true
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIRDSInstance
+
+  # ElastiCache Cluster
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for ElastiCache Redis
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      CacheSubnetGroupName: InsuranceAPIElastiCacheSubnetGroup
+
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      ClusterName: InsuranceAPIRedisCluster
+      Engine: redis
+      CacheNodeType: cache.t3.micro
+      NumCacheNodes: 1
+      VpcSecurityGroupIds:
+        - !Ref ElastiCacheSecurityGroup
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+      EngineVersion: "6.x"
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIRedisCluster
+
+  # S3 Bucket
+  PolicyPDFBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPolicyPDFs
+
+  # Cognito Customer Pool
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref CognitoUserPoolName
+      AutoVerifiedAttributes:
+        - email
+      AliasAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      MfaConfiguration: OFF
+      UsernameAttributes:
+        - email
+      Tags:
+        - Key: Name
+          Value: InsuranceAPICognitoUserPool
+
+  # Cognito Customer Pool Client
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Ref CognitoAppClientName
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+        - CUSTOM_AUTH_FLOW_ONLY
+      AllowedOAuthFlowsUserPoolClient: true
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - phone
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - "https://your-callback-url.com" # Replace with your actual callback URL
+      LogoutURLs:
+        - "https://your-logout-url.com"   # Replace with your actual logout URL
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # IAM Roles
+  # ECS Task Execution Role
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: InsuranceAPITaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-insurance.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+
+  # ECS Task Role
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: InsuranceAPITaskRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-insurance.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonRDSFullAccess
+        - arn:aws:iam::aws:policy/AmazonElastiCacheFullAccess
+
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      Tags:
+        - Key: Name
+          Value: InsuranceAPICluster
+
+  # ALB Target Group
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: InsuranceAPITargetGroup
+      VpcId: !Ref VPC
+      Protocol: HTTP
+      Port: 8000
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200-299"
+
+  # Application Load Balancer
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: InsuranceAPIALB
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Scheme: internet-facing
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIALB
+
+  # ALB Listener
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+
+  ALBListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Protocol: HTTPS
+      Port: 443
+      SslPolicy: ELBSecurityPolicy-2016-08
+      Certificates:
+        - CertificateArn: "arn:aws:acm:your-region:your-account-id:certificate/your-certificate-id" # Replace with your ACM certificate ARN
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+
+  # ECS Task Definition
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref TaskDefinitionFamily
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: "256"
+      Memory: "512"
+      ContainerDefinitions:
+        - Name: FastAPIContainer
+          Image: !Ref ECRRepositoryURI
+          PortMappings:
+            - ContainerPort: 8000
+          Essential: true
+          Environment:
+            - Name: DB_NAME
+              Value: !Ref DBName
+            - Name: DB_USER
+              Value: !Ref DBUsername
+            - Name: DB_PASSWORD
+              Value: !Ref DBPassword
+            - Name: DB_HOST
+              Value: !GetAtt RDSInstance.Endpoint.Address
+            - Name: DB_PORT
+              Value: "5432"
+            - Name: S3_BUCKET
+              Value: !Ref S3BucketName
+            - Name: REDIS_HOST
+              Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Address
+            - Name: REDIS_PORT
+              Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Port
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ECS Service
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: InsuranceAPIService
+      TaskDefinition: !Ref ECSTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: FastAPIContainer
+          ContainerPort: 8000
+          TargetGroupArn: !Ref ALBTargetGroup
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+
+  # CloudWatch Log Group
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/ecs/InsuranceAPILogGroup"
+      RetentionInDays: 14
+      Tags:
+        - Key: Name
+          Value: InsuranceAPILogGroup
+
+  # API Gateway
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: InsuranceAPIGateway
+      Description: API Gateway for Insurance Policy GET API
+      FailOnWarnings: true
+
+  # API Gateway Resource
+  APIGatewayResourcePolicies:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Policy: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/*",
+              "Condition": {
+                "IpAddress": {
+                  "aws:SourceIp": "${AllowedCIDR}"
+                }
+              }
+            }
+          ]
+        }
+
+  # API Gateway Resource - Root
+  APIGatewayRoot:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: "api"
+      RestApiId: !Ref APIGateway
+
+  # API Gateway Resource - Policies
+  APIGatewayPoliciesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref APIGatewayRoot
+      PathPart: "policies"
+      RestApiId: !Ref APIGateway
+
+  # API Gateway Resource - Policy ID
+  APIGatewayPolicyIDResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref APIGatewayPoliciesResource
+      PathPart: "{policy_id}"
+      RestApiId: !Ref APIGateway
+
+  # Cognito Authorizer
+  APIGatewayCognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: InsuranceAPICognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      RestApiId: !Ref APIGateway
+      IdentitySource: "method.request.header.Authorization"
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+
+  # API Gateway Method - GET /api/policies/{policy_id}
+  APIGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref APIGatewayCognitoAuthorizer
+      HttpMethod: GET
+      ResourceId: !Ref APIGatewayPolicyIDResource
+      RestApiId: !Ref APIGateway
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub "http://${ALB.DNSName}/api/policies/{policy_id}"
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: 200
+        - StatusCode: 401
+        - StatusCode: 404
+        - StatusCode: 500
+
+  # API Gateway Deployment
+  APIGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref APIGateway
+      StageName: prod
+    DependsOn: APIGatewayMethod
+
+Outputs:
+  VPCId:
+    Description: ID of the VPC
+    Value: !Ref VPC
+
+  PublicSubnet1Id:
+    Description: ID of Public Subnet 1
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2Id:
+    Description: ID of Public Subnet 2
+    Value: !Ref PublicSubnet2
+
+  PrivateSubnet1Id:
+    Description: ID of Private Subnet 1
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2Id:
+    Description: ID of Private Subnet 2
+    Value: !Ref PrivateSubnet2
+
+  RDSInstanceEndpoint:
+    Description: Endpoint of the RDS Instance
+    Value: !GetAtt RDSInstance.Endpoint.Address
+
+  ElastiCacheEndpoint:
+    Description: Endpoint of the ElastiCache Cluster
+    Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Address
+
+  S3BucketName:
+    Description: Name of the S3 Bucket
+    Value: !Ref PolicyPDFBucket
+
+  CognitoUserPoolId:
+    Description: Cognito Customer Pool ID
+    Value: !Ref CognitoUserPool
+
+  CognitoUserPoolClientId:
+    Description: Cognito Customer Pool Client ID
+    Value: !Ref CognitoUserPoolClient
+
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
+
+  APIGatewayURL:
+    Description: API Gateway URL
+    Value: !Sub "https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/api/policies/{policy_id}"

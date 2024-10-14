@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Stage 3 & 4: Route Tables, NAT Gateway, and Associations'
+
+Parameters:
+  Stage1StackName:
+    Type: String
+    Description: The name of the Stage 1 stack
+    Default: "insurance-api-network-stage1"
+
+  Stage2StackName:
+    Type: String
+    Description: The name of the Stage 2 stack
+    Default: "insurance-api-network-stage2"
+
+Resources:
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+      Tags:
+        - Key: Name
+          Value: InsuranceAPIPrivateRouteTable
+
+  EIPforNAT:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIPforNAT.AllocationId
+      SubnetId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-PublicSubnet1Id"
+      Tags:
+        - Key: Name
+          Value: InsuranceAPINATGateway
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-InternetGatewayId"
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-PublicSubnet1Id"
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-PublicSubnet2Id"
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
+      RouteTableId: !Ref PrivateRouteTable
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+      InternetGatewayId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-InternetGatewayId"
+
+Outputs:
+  PublicRouteTableId:
+    Description: Public Route Table ID
+    Value: !Ref PublicRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicRouteTableId"
+
+  PrivateRouteTableId:
+    Description: Private Route Table ID
+    Value: !Ref PrivateRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateRouteTableId"
+
+  NATGatewayId:
+    Description: NAT Gateway ID
+    Value: !Ref NATGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-NATGatewayId"
