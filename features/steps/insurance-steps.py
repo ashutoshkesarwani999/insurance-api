@@ -8,16 +8,15 @@ BASE_URL = "http://127.0.0.1:8000"  # Adjust this to match your API's base URL
 # def step_customer_authenticated(context):
 #     context.authentication_skipped = True
 
-@given('an insurance policy with id "{policy_id}" exists')
-def step_policy_exists(context, policy_id):
-    create_mock_policy(policy_id)
+@given('an insurance policy with id "{insurance_id}" exists')
+def step_policy_exists(context, insurance_id):
+    create_mock_policy(insurance_id)
 
-@when('the customer sends a GET request to "v1/insurance/{policy_id}"')
-def step_send_get_request(context, policy_id):
-    context.auth_token = "XXXXX"
-    headers = {"Authorization": f"Bearer {context.auth_token}"}
-    full_url = f"{BASE_URL}/v1/insurance/{policy_id}"
-    context.response = requests.get(full_url, headers=headers, timeout=30)
+@when('the customer sends a GET request to "v1/insurance/{customer_id}"')
+def step_send_get_request(context, customer_id):
+    full_url = f"{BASE_URL}/v1/insurance/{customer_id}"
+    print(full_url)
+    context.response = requests.get(full_url,  timeout=30)
 
 
 @then("the response status code should be {status_code:d}")
@@ -27,11 +26,12 @@ def step_check_status_code(context, status_code):
 @then("the response should contain the details of the insurance policy")
 def step_check_policy_details(context):
     response_data = context.response.json()
-    assert "policy_id" in response_data
-    assert "policy_url" in response_data
-    assert "policy_name" in response_data
+    print(response_data)
+    for resp in response_data:
+        assert "insurance_id" in resp
+        assert "customer_policy_url" in resp
+        assert "customer_id" in resp
     # Add more assertions as needed
-
 
 
 @given('a customer is authenticated')
@@ -45,7 +45,7 @@ def step_impl(context):
     # For this step, we'll assume policies already exist
     # In a real scenario, you might want to create test policies here
     print("Assuming multiple insurance policies exist in the system")
-    context.expected_policy_count = 2  # Adjust as needed
+    context.expected_policy_count = 1  # Adjust as needed
 
 @when('the customer sends a GET request to "{endpoint}"')
 def step_impl(context, endpoint):
@@ -84,15 +84,15 @@ def step_impl(context):
 
     # Check the structure of each policy (adjust according to your API response structure)
     for policy in response_data:
-        assert "policy_id" in policy, "Each policy should have an id"
-        assert "policy_url" in policy, "Each policy should have a name"
+        assert "insurance_id" in policy, "Each policy should have an id"
+        assert "customer_policy_url" in policy, "Each policy should have a name"
         # Add more assertions as needed for your policy structure
 
 
-def create_mock_policy(policy_id):
+def create_mock_policy(insurance_id):
     # This could be a dictionary or a custom Policy object
     mock_policy = {
-        "policy_id": policy_id,
+        "insurance_id": insurance_id,
         "coverage": "Full Coverage",
         "premium": 1000.00,
         "start_date": "2023-01-01",
@@ -104,4 +104,4 @@ def create_mock_policy(policy_id):
     if not hasattr(create_mock_policy, "policies"):
         create_mock_policy.policies = {}
 
-    create_mock_policy.policies[policy_id] = mock_policy
+    create_mock_policy.policies[insurance_id] = mock_policy

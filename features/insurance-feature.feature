@@ -1,6 +1,6 @@
 Feature: Fetch Insurance Policy details
 
-  Scenario: Retrieve a specific insurance policy
+  Scenario: Retrieve a specific insurance policy of the customer
     Given a customer is authenticated
     And an insurance policy with id "2" exists
     When the customer sends a GET request to "v1/insurance/2"
@@ -13,10 +13,10 @@ Feature: Fetch Insurance Policy details
     Then the response status code should be 404
     And the response should contain an error message about policy not found
 
-  Scenario: Retrieve all insurance policies
+  Scenario: Retrieve all insurance policies of the customer
     Given a customer is authenticated
     And there are multiple insurance policies in the system
-    When the customer sends a GET request to "v1/insurance/"
+    When the customer sends a GET request to "v1/insurance/1"
     Then the response status code should be 200
     And the response should contain a list of all available insurance policies
 
