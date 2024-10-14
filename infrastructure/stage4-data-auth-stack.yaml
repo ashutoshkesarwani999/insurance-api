@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Data and Auth Stack: Security Groups, RDS, ElastiCache, S3, and Cognito'
+
+Parameters:
+  Stage1StackName:
+    Type: String
+    Description: The name of the Stage 1 stack
+    Default: "insurance-api-network-stage1"
+
+  Stage2StackName:
+    Type: String
+    Description: The name of the Stage 2 stack
+    Default: "insurance-api-network-stage2"
+
+  DBCredentialsSecret:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing database credentials
+    Default: "arn:aws:secretsmanager:eu-west-1:860247412108:secret:test/InsuranceAPI/DBCredentials-gsmZfh"
+
+
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket to store policy PDFs
+    Default: insurance-files-tokio-m
+
+  CognitoUserPoolName:
+    Type: String
+    Default: "InsuranceAPICognitoUserPool"
+    Description: Name of the Cognito User Pool
+
+  CognitoAppClientName:
+    Type: String
+    Default: "InsuranceAPIAppClient"
+    Description: Name of the Cognito User Pool Client
+
+Resources:
+  # Security Groups
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+
+  ElastiCacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ElastiCache
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId:
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+
+  # RDS Instance
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS instance
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
+        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      DBName:
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:db}}' ]]
+      MasterUsername:
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:user}}' ]]
+      MasterUserPassword:
+        !Join ['', ['{{resolve:secretsmanager:', !Ref DBCredentialsSecret, ':SecretString:password}}' ]]
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: '20'
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      MultiAZ: true
+
+  # ElastiCache Cluster
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for ElastiCache Redis
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
+        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
+
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    DependsOn: RDSInstance
+    Properties:
+      ClusterName: InsuranceAPIRedisCluster
+      Engine: redis
+      CacheNodeType: cache.t3.micro
+      NumCacheNodes: 1
+      VpcSecurityGroupIds:
+        - !Ref ElastiCacheSecurityGroup
+      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+  # S3 Bucket
+  PolicyPDFBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # Cognito User Pool
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref CognitoUserPoolName
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Ref CognitoAppClientName
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+
+Outputs:
+  RDSEndpoint:
+    Description: RDS Instance Endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSEndpoint"
+
+  RDSPort:
+    Description: RDS Instance Port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSPort"
+
+  ElastiCacheEndpoint:
+    Description: ElastiCache Endpoint
+    Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-ElastiCacheEndpoint"
+
+  ElastiCachePort:
+    Description: ElastiCache Port
+    Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-ElastiCachePort"
+
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value: !Ref PolicyPDFBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoUserPoolId"
+
+  CognitoAppClientId:
+    Description: Cognito App Client ID
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoAppClientId"
+
+  RDSSecurityGroupId:
+    Description: RDS Security Group ID
+    Value: !Ref RDSSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSSecurityGroupId"
+
+  ElastiCacheSecurityGroupId:
+    Description: ElastiCache Security Group ID
+    Value: !Ref ElastiCacheSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ElastiCacheSecurityGroupId"
+
+  ECSSecurityGroupId:
+    Description: ECS Security Group ID
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ECSSecurityGroupId"
