@@ -23,14 +23,14 @@ sampleListInsuranceResponse = {
             "application/json": {
                 "example": [
                     {
-                        "policy_name": "Policy 1",
-                        "policy_url": "https://example.com/policy1",
-                        "policy_id": 1,
+                        "customer_id": 1,
+                        "customer_policy_url": "https://example.com/policy1",
+                        "insurance_id": 1,
                     },
                     {
-                        "policy_name": "Policy 2",
-                        "policy_url": "https://example.com/policy2",
-                        "policy_id": 2,
+                        "customer_id": 2,
+                        "customer_policy_url": "https://example.com/policy2",
+                        "insurance_id": 2,
                     },
                 ]
             }
@@ -44,9 +44,9 @@ sampleInsuranceResponse = {
         "content": {
             "application/json": {
                 "example": {
-                    "policy_name": "Policy 1",
-                    "policy_url": "https://example.com/policy1",
-                    "policy_id": 1,
+                    "customer_id": 1,
+                    "customer_policy_url": "https://example.com/policy1",
+                    "insurance_id": 1,
                 }
             }
         },
