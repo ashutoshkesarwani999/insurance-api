@@ -4,10 +4,28 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.exceptions import ExceptionMiddleware
 
 from api import router
 from core.config import config
 
+
+
+async def global_exception_handler(request, exc):
+    if isinstance(exc, StarletteHTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.detail},
+        )
+    else:
+        # Log the exception for debugging purposes
+        print(f"Unhandled exception: {exc}")
+
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal Server Error"},
+        )
 
 def init_routers(app_: FastAPI) -> None:
     app_.include_router(router)
@@ -31,7 +49,8 @@ def make_middleware() -> List[Middleware]:
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
-        )
+        ),
+        Middleware(ExceptionMiddleware, handlers={Exception: global_exception_handler}),
     ]
     return middleware
 
