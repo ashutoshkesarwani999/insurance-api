@@ -2,42 +2,54 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Application Stack: ECR, ECS Cluster, ALB, and related resources'
 
 Parameters:
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-    Description: VPC where the resources will be deployed
+  Stage1StackName:
+    Type: String
+    Description: The name of the Stage 1 stack
+    Default: "insurance-api-network-stage1"
 
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet::Id
-    Description: Public subnet 1 for the ALB
+  Stage2StackName:
+    Type: String
+    Description: The name of the Stage 2 stack
+    Default: "insurance-api-network-stage2"
 
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet::Id
-    Description: Public subnet 2 for the ALB
+  Stage4StackName:
+    Type: String
+    Description: The name of the Stage 4 stack
+    Default: "insurance-api-data-auth-stage4"
 
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet::Id
-    Description: Private subnet 1 for the ECS tasks
+  Stage5StackName:
+    Type: String
+    Description: The name of the Stage 5 stack
+    Default: "insurance-api-ecr-stage5"
 
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet::Id
-    Description: Private subnet 2 for the ECS tasks
+  DBCredentialsSecret:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing database credentials
+    Default: "arn:aws:secretsmanager:eu-west-1:860247412108:secret:test/InsuranceAPI/DBCredentials-gsmZfh"
+
+
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket to store policy PDFs
+    Default: insurance-files-tokio-marine
+
+  Environment:
+    Type: String
+    AllowedValues: [ TEST, PRODUCTION]
+    Default: TEST
+    Description: The environment name
+
 
 Resources:
-  # ECR Repository
-  ECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: insurance-api-repo
-      ImageTagMutability: MUTABLE
-      ImageScanningConfiguration:
-        ScanOnPush: true
+
 
   # Security Groups
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for the ALB
-      VpcId: !Ref VpcId
+      VpcId: 
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -48,12 +60,19 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for ECS tasks
-      VpcId: !Ref VpcId
+      VpcId: 
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8000
           ToPort: 8000
           SourceSecurityGroupId: !Ref ALBSecurityGroup
+      # SecurityGroupEgress:
+      #   - IpProtocol: tcp
+      #     FromPort: 5432
+      #     ToPort: 5432
+      #     DestinationSecurityGroupId:
+      #       Fn::ImportValue: !Sub "${Stage4StackName}-ECSSecurityGroupId"
 
   # ECS Cluster
   ECSCluster:
@@ -75,7 +94,24 @@ Resources:
       TaskRoleArn: !Ref ECSTaskRole
       ContainerDefinitions:
         - Name: insurance-api-container
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}:latest
+          Image:
+            Fn::ImportValue: !Sub "${Stage5StackName}-ECRRepositoryUri"
+          Environment:
+            - Name: DB_CREDENTIALS_SECRET
+              Value: !Ref DBCredentialsSecret
+            - Name: REGION
+              Value: !Ref AWS::Region
+            - Name: S3_BUCKET_NAME
+              Value: 
+                Fn::ImportValue: !Sub "${Stage4StackName}-S3BucketName"
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            # - Name: REDIS_HOST
+            #   Value: 
+            #     Fn::ImportValue: !Sub "${Stage4StackName}-ElastiCacheEndpoint"
+            # - Name: REDIS_PORT
+            #   Value: 
+            #     Fn::ImportValue: !Sub "${Stage4StackName}-ElastiCachePort"
           PortMappings:
             - ContainerPort: 8000
           LogConfiguration:
@@ -94,8 +130,8 @@ Resources:
         - Key: idle_timeout.timeout_seconds
           Value: '60'
       Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - Fn::ImportValue: !Sub "${Stage1StackName}-PublicSubnet1Id"
+        - Fn::ImportValue: !Sub "${Stage1StackName}-PublicSubnet2Id"
       SecurityGroups:
         - !Ref ALBSecurityGroup
 
@@ -109,15 +145,29 @@ Resources:
       Port: 80
       Protocol: HTTP
 
+  # ALBListenerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  #   Properties:
+  #     Actions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref ALBTargetGroup
+  #     Conditions:
+  #       - Field: path-pattern
+  #         Values:
+  #           - /v1/insurance/*
+  #     ListenerArn: !Ref ALBListener
+  #     Priority: 1
+
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckPath: /health
+      HealthCheckPath: /v1/health/
       Name: insurance-api-tg
       Port: 8000
       Protocol: HTTP
       TargetType: ip
-      VpcId: !Ref VpcId
+      VpcId: 
+        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
 
   # ECS Service
   ECSService:
@@ -129,12 +179,21 @@ Resources:
       TaskDefinition: !Ref TaskDefinition
       DesiredCount: 2
       LaunchType: FARGATE
+      # DeploymentConfiguration:
+      #   MaximumPercent: 200
+      #   MinimumHealthyPercent: 50
+      #   DeploymentCircuitBreaker:
+      #     Enable: true
+      #     Rollback: false
+      EnableExecuteCommand: true
+      DeploymentController:
+        Type: ECS
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
           Subnets:
-            - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
+            - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
+            - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
           SecurityGroups:
             - !Ref ECSSecurityGroup
       LoadBalancers:
@@ -155,6 +214,25 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+      - PolicyName: ApplicationPermissions
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: 
+                - !Ref DBCredentialsSecret
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: 
+                -  Fn::ImportValue: !Sub "${Stage4StackName}-S3BucketName"
+            - Effect: Allow
+              Action:
+                - elasticache:DescribeCacheClusters
+              Resource: '*'
 
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -168,6 +246,16 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+      - PolicyName: CloudWatchLogsAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !GetAtt CloudWatchLogsGroup.Arn
 
   # CloudWatch Logs
   CloudWatchLogsGroup:
@@ -176,13 +264,8 @@ Resources:
       LogGroupName: /ecs/insurance-api
       RetentionInDays: 14
 
-Outputs:
-  ECRRepositoryUri:
-    Description: URI of the ECR Repository
-    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}
-    Export:
-      Name: !Sub "${AWS::StackName}-ECRRepositoryUri"
 
+Outputs:
   ALBDNSName:
     Description: DNS name of the Application Load Balancer
     Value: !GetAtt ApplicationLoadBalancer.DNSName
@@ -200,3 +283,9 @@ Outputs:
     Value: !GetAtt ECSService.Name
     Export:
       Name: !Sub "${AWS::StackName}-ECSServiceName"
+
+  CloudWatchGroup:
+    Description: ARN of the CloudWatch Log Group
+    Value: !Ref CloudWatchLogsGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudWatchGroup"

@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Alarm Stack to monitor the log groups for any alarm'
+
+
+
+Parameters:
+  Stage5StackName:
+    Type: String
+    Description: The name of the Stage 5 stack
+    Default: "insurance-api-stack-stage5"
+
+
+  Email:
+    Type: String
+    Description: Email of the user to receive SNS notifications
+    Default: ashutoshkesarwani999@gmail.com
+
+Resources:
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: ECS-Alarms
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref Email
+
+  InternalErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: 
+        Fn::ImportValue: !Sub "${Stage5StackName}-CloudWatchGroup"
+      FilterPattern: 'Error'
+      MetricTransformations:
+        - MetricNamespace: 'InsuranceAPI/Errors'
+          MetricName: InternalErrors
+          MetricValue: 1
+          DefaultDimensionValue: 1
+
+  InternalServerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if internal server errors occur
+      MetricName: InternalErrors
+      Namespace: 'InsuranceAPI/Errors'
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ThresholdType: Static
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+      
+
+
+  # High CPU Usage Alarm
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if CPU usage is high
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      ThresholdType: Static
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 80
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ClusterName
+          Value: 
+            Fn::ImportValue: !Sub "${Stage5StackName}-ECSClusterName"
+        - Name: ServiceName
+          Value: 
+            Fn::ImportValue: !Sub "${Stage5StackName}-ECSServiceName"
+
+  # Service Health Alarm
+  ServiceHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if the service is unhealthy
+      MetricName: HealthyTaskCount
+      Namespace: AWS/ECS
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 2
+      ThresholdType: Static
+      ComparisonOperator: LessThanThreshold
+      Threshold: 1
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: ClusterName
+          Value: 
+            Fn::ImportValue: !Sub "${Stage5StackName}-ECSClusterName"
+        - Name: ServiceName
+          Value: 
+            Fn::ImportValue: !Sub "${Stage5StackName}-ECSServiceName"
+
+Outputs:
+  AlarmTopicArn:
+    Description: ARN of the SNS topic for alarms
+    Value: !Ref AlarmTopic

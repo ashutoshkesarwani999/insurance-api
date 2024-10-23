@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Application Stack: ECR, ECS Cluster, ALB, and related resources'
+
+Resources:
+
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: insurance-api-repo
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+Outputs:
+  ECRRepositoryUri:
+    Description: URI of the ECR Repository
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}
+    Export:
+      Name: !Sub "${AWS::StackName}-ECRRepositoryUri"

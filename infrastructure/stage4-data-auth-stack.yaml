@@ -21,7 +21,7 @@ Parameters:
   S3BucketName:
     Type: String
     Description: Name of the S3 bucket to store policy PDFs
-    Default: insurance-files-tokio-m
+    Default: insurance-files-tokio-marine
 
   CognitoUserPoolName:
     Type: String
@@ -47,17 +47,17 @@ Resources:
           ToPort: 5432
           SourceSecurityGroupId: !Ref ECSSecurityGroup
 
-  ElastiCacheSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for ElastiCache
-      VpcId:
-        Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 6379
-          ToPort: 6379
-          SourceSecurityGroupId: !Ref ECSSecurityGroup
+  # ElastiCacheSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Security group for ElastiCache
+  #     VpcId:
+  #       Fn::ImportValue: !Sub "${Stage1StackName}-VpcId"
+  #     SecurityGroupIngress:
+  #       - IpProtocol: tcp
+  #         FromPort: 6379
+  #         ToPort: 6379
+  #         SourceSecurityGroupId: !Ref ECSSecurityGroup
 
   ECSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -93,26 +93,26 @@ Resources:
       DBSubnetGroupName: !Ref RDSSubnetGroup
       MultiAZ: true
 
-  # ElastiCache Cluster
-  ElastiCacheSubnetGroup:
-    Type: AWS::ElastiCache::SubnetGroup
-    Properties:
-      Description: Subnet group for ElastiCache Redis
-      SubnetIds:
-        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
-        - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
+  # # ElastiCache Cluster
+  # ElastiCacheSubnetGroup:
+  #   Type: AWS::ElastiCache::SubnetGroup
+  #   Properties:
+  #     Description: Subnet group for ElastiCache Redis
+  #     SubnetIds:
+  #       - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet1Id"
+  #       - Fn::ImportValue: !Sub "${Stage2StackName}-PrivateSubnet2Id"
 
-  ElastiCacheCluster:
-    Type: AWS::ElastiCache::CacheCluster
-    DependsOn: RDSInstance
-    Properties:
-      ClusterName: InsuranceAPIRedisCluster
-      Engine: redis
-      CacheNodeType: cache.t3.micro
-      NumCacheNodes: 1
-      VpcSecurityGroupIds:
-        - !Ref ElastiCacheSecurityGroup
-      CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
+  # ElastiCacheCluster:
+  #   Type: AWS::ElastiCache::CacheCluster
+  #   DependsOn: RDSInstance
+  #   Properties:
+  #     ClusterName: InsuranceAPIRedisCluster
+  #     Engine: redis
+  #     CacheNodeType: cache.t3.micro
+  #     NumCacheNodes: 1
+  #     VpcSecurityGroupIds:
+  #       - !Ref ElastiCacheSecurityGroup
+  #     CacheSubnetGroupName: !Ref ElastiCacheSubnetGroup
   # S3 Bucket
   PolicyPDFBucket:
     Type: AWS::S3::Bucket
@@ -164,21 +164,21 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-RDSPort"
 
-  ElastiCacheEndpoint:
-    Description: ElastiCache Endpoint
-    Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Address
-    Export:
-      Name: !Sub "${AWS::StackName}-ElastiCacheEndpoint"
+  # ElastiCacheEndpoint:
+  #   Description: ElastiCache Endpoint
+  #   Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Address
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-ElastiCacheEndpoint"
 
-  ElastiCachePort:
-    Description: ElastiCache Port
-    Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Port
-    Export:
-      Name: !Sub "${AWS::StackName}-ElastiCachePort"
+  # ElastiCachePort:
+  #   Description: ElastiCache Port
+  #   Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Port
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-ElastiCachePort"
 
   S3BucketName:
     Description: S3 Bucket Name
-    Value: !Ref PolicyPDFBucket
+    Value: !GetAtt PolicyPDFBucket.Arn
     Export:
       Name: !Sub "${AWS::StackName}-S3BucketName"
 
@@ -200,11 +200,11 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-RDSSecurityGroupId"
 
-  ElastiCacheSecurityGroupId:
-    Description: ElastiCache Security Group ID
-    Value: !Ref ElastiCacheSecurityGroup
-    Export:
-      Name: !Sub "${AWS::StackName}-ElastiCacheSecurityGroupId"
+  # ElastiCacheSecurityGroupId:
+  #   Description: ElastiCache Security Group ID
+  #   Value: !Ref ElastiCacheSecurityGroup
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-ElastiCacheSecurityGroupId"
 
   ECSSecurityGroupId:
     Description: ECS Security Group ID

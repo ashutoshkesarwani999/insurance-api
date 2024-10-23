@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Setup OIDC for GitHub Actions'
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: 'GitHub organization name'
+  RepositoryName:
+    Type: String
+    Description: 'GitHub repository name'
+
+Resources:
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: 
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOIDCProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrg}/${RepositoryName}:*
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+      Policies:
+        - PolicyName: GitHubActionsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecr:'
+                  - 's3:GetBucketLocation'
+                Resource: 'arn:aws:s3:::example-bucket'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:DeleteObject'
+                Resource: 'arn:aws:s3:::example-bucket/*'
+
+Outputs:
+  RoleARN:
+    Description: 'ARN of the IAM Role for GitHub Actions'
+    Value: !GetAtt GitHubActionsRole.Arn

@@ -1,7 +1,7 @@
 from behave import given, when, then
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"  # Adjust this to match your API's base URL
+BASE_URL = "http://127.0.0.1:8000"
 
 
 # @given("a customer is authenticated")
@@ -31,19 +31,14 @@ def step_check_policy_details(context):
         assert "insurance_id" in resp
         assert "customer_policy_url" in resp
         assert "customer_id" in resp
-    # Add more assertions as needed
 
 
 @given('a customer is authenticated')
 def step_impl(context):
-    # This step is not implemented
     context.authentication_skipped = True
-    # raise NotImplementedError('STEP: Given a customer is authenticated')
 
 @given('there are multiple insurance policies in the system')
 def step_impl(context):
-    # For this step, we'll assume policies already exist
-    # In a real scenario, you might want to create test policies here
     print("Assuming multiple insurance policies exist in the system")
     context.expected_policy_count = 1  # Adjust as needed
 
@@ -52,8 +47,7 @@ def step_impl(context, endpoint):
     full_url = f"{BASE_URL}/{endpoint.strip('/')}"
     print(f"Sending GET request to: {full_url}")
 
-    # Note: In a real scenario, you'd include the authentication token here
-    headers = {}  # Add authentication headers when implemented
+    headers = {}
 
     try:
         response = requests.get(full_url, headers=headers)
@@ -82,15 +76,12 @@ def step_impl(context):
     assert len(response_data) == context.expected_policy_count, \
         f"Expected {context.expected_policy_count} policies, but got {len(response_data)}"
 
-    # Check the structure of each policy (adjust according to your API response structure)
     for policy in response_data:
         assert "insurance_id" in policy, "Each policy should have an id"
         assert "customer_policy_url" in policy, "Each policy should have a name"
-        # Add more assertions as needed for your policy structure
 
 
 def create_mock_policy(insurance_id):
-    # This could be a dictionary or a custom Policy object
     mock_policy = {
         "insurance_id": insurance_id,
         "coverage": "Full Coverage",
@@ -98,9 +89,6 @@ def create_mock_policy(insurance_id):
         "start_date": "2023-01-01",
         "end_date": "2023-12-31"
     }
-
-    # In a real scenario, you might store this in a mock database or in-memory store
-    # For simplicity, we'll use a global dictionary
     if not hasattr(create_mock_policy, "policies"):
         create_mock_policy.policies = {}
 
